@@ -48,11 +48,13 @@ def send_message(bot_token, chat_id, text):
     for attempt in range(MAX_RETRIES + 1):
         try:
             resp = requests.post(url, json=payload, timeout=30)
-            resp.raise_for_status()
-            result = resp.json()
-            if result.get("ok"):
-                return True
-            print(f"  Telegram API returned ok=false: {result}")
+            if resp.status_code != 200:
+                print(f"  Telegram error (attempt {attempt + 1}): {resp.status_code} - {resp.text}")
+            else:
+                result = resp.json()
+                if result.get("ok"):
+                    return True
+                print(f"  Telegram API returned ok=false: {result}")
         except Exception as e:
             print(f"  Telegram send error (attempt {attempt + 1}): {e}")
         if attempt < MAX_RETRIES:
