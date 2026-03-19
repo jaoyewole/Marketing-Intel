@@ -1,0 +1,46 @@
+name: Ad Intel Collector
+
+on:
+  schedule:
+    - cron: '0 2,5,8,11,14,17,20,23 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch feeds
+        run: python scripts/fetch_feeds.py
+
+      - name: Process with Groq
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python scripts/process_with_groq.py
+
+      - name: Send Telegram digest
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/send_telegram.py
+
+      - name: Commit updated seen articles
+        run: |
+          git config user.name "Ad Intel Bot"
+          git config user.email "bot@noreply.github.com"
+          git add data/seen_articles.json
+          git diff --cached --quiet || git commit -m "update seen articles"
+          git push
