@@ -1,0 +1,29 @@
+{
+  "queries": [
+    "Nigerian advertising",
+    "Nigeria marketing agency",
+    "APCON Nigeria",
+    "Nigeria brand campaign",
+    "Nigeria media agency",
+    "Lagos advertising",
+    "Nigeria digital marketing",
+    "OAAN Nigeria",
+    "AAAN Nigeria",
+    "Nigeria PR agency",
+    "Nigeria creative agency",
+    "Nigeria ad spend",
+    "campaign",
+    "brand launch"
+  ],
+  "feeds": [
+    "https://marketingedge.com.ng/feed/",
+    "https://brandcom.ng/feed/",
+    "https://www.businessdayng.com/category/marketing/feed/",
+    "https://guardian.ng/category/business-services/marketing/feed/",
+    "https://brandcampaign.com.ng/feed/"
+  ],
+  "total_queries": 14,
+  "total_feeds": 5,
+  "total": 19,
+  "updated_at": "2026-04-23T09:09:20.329961+00:00"
+}

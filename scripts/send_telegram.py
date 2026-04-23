@@ -13,14 +13,16 @@ import requests
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 PROCESSED_FILE = os.path.join(DATA_DIR, "processed_articles.json")
 NEW_FILE = os.path.join(DATA_DIR, "new_articles.json")
+LAST_DIGEST_FILE = os.path.join(DATA_DIR, "last_digest.json")
 MAX_MSG_LEN = 4000
 MAX_RETRIES = 2
 WAT = timezone(timedelta(hours=1))
+DIGEST_WINDOW = timedelta(hours=3)
 
 SENTIMENT_EMOJI = {
-    "Positive": "\u2705",
+    "Positive": "✅",
     "Negative": "\U0001f7e5",
-    "Neutral": "\u25aa\ufe0f",
+    "Neutral": "▪️",
 }
 
 
@@ -62,20 +64,29 @@ def send_message(bot_token, chat_id, text):
     return False
 
 
+def build_window_header():
+    """Build the 'Mar 23, 2026 | 12:00 PM - 3:00 PM WAT' window label."""
+    now_wat = datetime.now(WAT)
+    start_wat = now_wat - DIGEST_WINDOW
+    return (
+        f"{now_wat.strftime('%b %d, %Y')} | "
+        f"{start_wat.strftime('%I:%M %p').lstrip('0')} – "
+        f"{now_wat.strftime('%I:%M %p').lstrip('0')} WAT"
+    )
+
+
 def format_digest(articles):
     """Format articles into a Telegram HTML digest."""
-    now = datetime.now(WAT).strftime("%B %d, %Y \u2022 %I:%M %p WAT")
+    window = build_window_header()
 
     header = (
-        f"<b>\U0001f4e1 Ad Intel Digest</b>\n"
-        f"<i>{now}</i>\n"
+        f"<b>\U0001f4f0 Ad Intel Digest</b> | <i>{window}</i>\n"
         f"<b>{len(articles)} notable update{'s' if len(articles) != 1 else ''}</b>\n"
         f"{'=' * 30}\n"
     )
 
     footer = "\n\n<i>Powered by Ad Intel Agent | Next update in 3 hours</i>"
 
-    # Group by category
     categories = {}
     for art in articles:
         cat = art.get("category", "Uncategorized")
@@ -85,7 +96,7 @@ def format_digest(articles):
     for cat in sorted(categories.keys()):
         section = f"\n<b>\U0001f4cc {cat}</b>\n"
         for art in categories[cat]:
-            emoji = SENTIMENT_EMOJI.get(art.get("sentiment", "Neutral"), "\u25aa\ufe0f")
+            emoji = SENTIMENT_EMOJI.get(art.get("sentiment", "Neutral"), "▪️")
             title = art.get("title", "Untitled")
             url = art.get("url", "")
             source = art.get("source", "Unknown")
@@ -128,6 +139,19 @@ def cleanup():
                 pass
 
 
+def record_digest(article_count):
+    """Persist metadata about the digest we just sent for /status."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    payload = {
+        "sent_at_utc": datetime.now(timezone.utc).isoformat(),
+        "sent_at_wat": datetime.now(WAT).strftime("%b %d, %Y %I:%M %p WAT"),
+        "article_count": article_count,
+        "window": build_window_header(),
+    }
+    with open(LAST_DIGEST_FILE, "w") as f:
+        json.dump(payload, f, indent=2)
+
+
 def main():
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
@@ -142,16 +166,17 @@ def main():
     articles = load_processed()
 
     if not articles:
-        now = datetime.now(WAT).strftime("%B %d, %Y \u2022 %I:%M %p WAT")
+        window = build_window_header()
         msg = (
-            f"<b>\U0001f4e1 Ad Intel Digest</b>\n"
-            f"<i>{now}</i>\n\n"
-            f"No notable updates this cycle.\n\n"
+            f"<b>\U0001f4f0 Ad Intel Digest</b> | <i>{window}</i>\n\n"
+            f"No new marketing/business news in the last 3 hours.\n\n"
             f"<i>Powered by Ad Intel Agent | Next update in 3 hours</i>"
         )
         success = send_message(bot_token, chat_id, msg)
         if success:
-            print("Sent 'no updates' message to Telegram.")
+            print("Sent empty-window message to Telegram.")
+            record_digest(0)
+            cleanup()
         else:
             print("Failed to send message to Telegram.")
             sys.exit(1)
@@ -173,6 +198,7 @@ def main():
             time.sleep(1)
 
     if all_sent:
+        record_digest(len(articles))
         cleanup()
         print("All messages sent successfully. Cleaned up temp files.")
     else:
